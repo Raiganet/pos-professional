@@ -8,4 +8,4 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-// ... model-model Anda (User, Produk, Transaction, dll)
+// ... (pastikan model Brand, Kategori, Produk, dll. ada di bawahnya)
