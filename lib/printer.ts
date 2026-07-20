@@ -1,44 +1,39 @@
-// lib/printer.ts - Bluetooth Thermal Printer Utility
+// lib/printer.ts - Bluetooth Thermal Printer with Fluent API
 
 let bluetoothDevice: any = null;
 let bluetoothCharacteristic: any = null;
 
-// Class ThermalPrinter untuk manajemen koneksi dan cetak
 export class ThermalPrinter {
   private device: any = null;
   private characteristic: any = null;
+  private buffer: number[] = [];
 
   get isConnected(): boolean {
     return this.device !== null && this.characteristic !== null;
   }
 
   async connect(): Promise<void> {
-    if (typeof window === 'undefined') {
-      throw new Error('Bluetooth API is only available in the browser');
+    if (typeof window === "undefined") {
+      throw new Error("Bluetooth API is only available in the browser");
     }
-
     if (!(window as any).navigator.bluetooth) {
-      throw new Error('Web Bluetooth API not supported. Please use Chrome or Edge.');
+      throw new Error("Web Bluetooth API not supported. Please use Chrome or Edge.");
     }
-
     try {
       const device = await (window as any).navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'],
+        optionalServices: ["000018f0-0000-1000-8000-00805f9b34fb"],
       });
-
       const server = await device.gatt?.connect();
-      if (!server) throw new Error('Failed to connect to GATT server');
-
-      const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-      const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
+      if (!server) throw new Error("Failed to connect to GATT server");
+      const service = await server.getPrimaryService("000018f0-0000-1000-8000-00805f9b34fb");
+      const characteristic = await service.getCharacteristic("00002af1-0000-1000-8000-00805f9b34fb");
       this.device = device;
       this.characteristic = characteristic;
       bluetoothDevice = device;
       bluetoothCharacteristic = characteristic;
     } catch (error) {
-      console.error('Bluetooth connection failed:', error);
+      console.error("Bluetooth connection failed:", error);
       throw error;
     }
   }
@@ -53,9 +48,86 @@ export class ThermalPrinter {
     bluetoothCharacteristic = null;
   }
 
+  init(): this {
+    this.buffer = [];
+    this.buffer.push(0x1B, 0x40);
+    return this;
+  }
+
+  align(alignment: "left" | "center" | "right"): this {
+    const alignMap: Record<string, number> = { left: 0, center: 1, right: 2 };
+    this.buffer.push(0x1B, 0x61, alignMap[alignment] || 0);
+    return this;
+  }
+
+  bold(enabled: boolean): this {
+    this.buffer.push(0x1B, 0x45, enabled ? 1 : 0);
+    return this;
+  }
+
+  size(width: number, height: number): this {
+    const w = Math.min(Math.max(width - 1, 0), 7);
+    const h = Math.min(Math.max(height - 1, 0), 7);
+    this.buffer.push(0x1D, 0x21, (w << 4) | h);
+    return this;
+  }
+
+  text(content: string): this {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(content);
+    for (const byte of bytes) {
+      this.buffer.push(byte);
+    }
+    this.buffer.push(0x0A);
+    return this;
+  }
+
+  textRaw(content: string): this {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(content);
+    for (const byte of bytes) {
+      this.buffer.push(byte);
+    }
+    return this;
+  }
+
+  line(char: string = "-"): this {
+    return this.text(char.repeat(32));
+  }
+
+  doubleLine(): this {
+    return this.text("=".repeat(32));
+  }
+
+  space(lines: number = 1): this {
+    for (let i = 0; i < lines; i++) {
+      this.buffer.push(0x0A);
+    }
+    return this;
+  }
+
+  cut(): this {
+    this.buffer.push(0x1D, 0x56, 0x00);
+    return this;
+  }
+
+  async send(): Promise<void> {
+    if (!this.characteristic) {
+      throw new Error("Printer not connected. Call connect() first.");
+    }
+    const data = new Uint8Array(this.buffer);
+    const chunkSize = 512;
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, i + chunkSize);
+      await this.characteristic.writeValueWithoutResponse(chunk);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    this.buffer = [];
+  }
+
   async print(data: string): Promise<void> {
     if (!this.characteristic) {
-      throw new Error('Printer not connected');
+      throw new Error("Printer not connected");
     }
     const encoder = new TextEncoder();
     const bytes = encoder.encode(data);
@@ -63,12 +135,49 @@ export class ThermalPrinter {
   }
 
   async printReceipt(receiptData: ReceiptData): Promise<void> {
-    const text = formatReceipt(receiptData);
-    await this.print(text);
+    this.init()
+      .align("center").bold(true).size(2, 2).text(receiptData.storeName)
+      .bold(false).size(1, 1);
+    if (receiptData.address) this.text(receiptData.address);
+    if (receiptData.phone) this.text(receiptData.phone);
+    this.doubleLine().align("left")
+      .text("No: " + receiptData.transactionNo)
+      .text("Tgl: " + receiptData.date);
+    if (receiptData.cashier) this.text("Kasir: " + receiptData.cashier);
+    if (receiptData.customerName) this.text("Pelanggan: " + receiptData.customerName);
+    this.line();
+    receiptData.items.forEach((item) => {
+      this.textRaw(
+        item.name.substring(0, 16).padEnd(16) +
+        String(item.qty).padStart(4) +
+        item.price.toLocaleString("id-ID").padStart(8) +
+        item.subtotal.toLocaleString("id-ID").padStart(8) + "\n"
+      );
+    });
+    this.line()
+      .textRaw("Subtotal".padEnd(22) + receiptData.subtotal.toLocaleString("id-ID").padStart(10) + "\n");
+    if (receiptData.discount && receiptData.discount > 0) {
+      this.textRaw("Diskon".padEnd(22) + ("-" + receiptData.discount.toLocaleString("id-ID")).padStart(10) + "\n");
+    }
+    if (receiptData.tax && receiptData.tax > 0) {
+      this.textRaw("Pajak".padEnd(22) + receiptData.tax.toLocaleString("id-ID").padStart(10) + "\n");
+    }
+    this.doubleLine().bold(true).size(1, 2)
+      .textRaw("TOTAL".padEnd(22) + receiptData.total.toLocaleString("id-ID").padStart(10) + "\n")
+      .bold(false).size(1, 1)
+      .line()
+      .textRaw(("Bayar (" + (receiptData.paymentMethod || "Cash") + ")").padEnd(22) + receiptData.paid.toLocaleString("id-ID").padStart(10) + "\n")
+      .textRaw("Kembalian".padEnd(22) + receiptData.change.toLocaleString("id-ID").padStart(10) + "\n")
+      .doubleLine().space()
+      .align("center")
+      .text("Terima Kasih!")
+      .text("Barang yang sudah dibeli")
+      .text("tidak dapat ditukar/dikembalikan")
+      .space(3).cut();
+    await this.send();
   }
 }
 
-// Interface untuk data struk
 export interface ReceiptData {
   storeName: string;
   address?: string;
@@ -76,12 +185,7 @@ export interface ReceiptData {
   transactionNo: string;
   date: string;
   cashier?: string;
-  items: Array<{
-    name: string;
-    qty: number;
-    price: number;
-    subtotal: number;
-  }>;
+  items: Array<{ name: string; qty: number; price: number; subtotal: number; }>;
   subtotal: number;
   discount?: number;
   tax?: number;
@@ -92,130 +196,47 @@ export interface ReceiptData {
   customerName?: string;
 }
 
-// Format struk menjadi teks ESC/POS
-function formatReceipt(data: ReceiptData): string {
-  const line = '================================\n';
-  const thinLine = '--------------------------------\n';
-  let receipt = '';
-
-  // Header
-  receipt += '\n\n';
-  receipt += centerText(data.storeName, 32) + '\n';
-  if (data.address) receipt += centerText(data.address, 32) + '\n';
-  if (data.phone) receipt += centerText(data.phone, 32) + '\n';
-  receipt += line;
-
-  // Info Transaksi
-  receipt += 'No: ' + data.transactionNo + '\n';
-  receipt += 'Tgl: ' + data.date + '\n';
-  if (data.cashier) receipt += 'Kasir: ' + data.cashier + '\n';
-  if (data.customerName) receipt += 'Pelanggan: ' + data.customerName + '\n';
-  receipt += thinLine;
-
-  // Items
-  receipt += padRight('Item', 16) + padLeft('Qty', 4) + padLeft('Harga', 6) + padLeft('Total', 6) + '\n';
-  receipt += thinLine;
-
-  data.items.forEach((item) => {
-    receipt += padRight(item.name.substring(0, 16), 16);
-    receipt += padLeft(String(item.qty), 4);
-    receipt += padLeft(formatNumber(item.price), 6);
-    receipt += padLeft(formatNumber(item.subtotal), 6) + '\n';
-  });
-
-  receipt += thinLine;
-
-  // Totals
-  receipt += padRight('Subtotal', 22) + padLeft(formatNumber(data.subtotal), 10) + '\n';
-  if (data.discount && data.discount > 0) {
-    receipt += padRight('Diskon', 22) + padLeft('-' + formatNumber(data.discount), 10) + '\n';
-  }
-  if (data.tax && data.tax > 0) {
-    receipt += padRight('Pajak', 22) + padLeft(formatNumber(data.tax), 10) + '\n';
-  }
-  receipt += line;
-  receipt += padRight('TOTAL', 22) + padLeft(formatNumber(data.total), 10) + '\n';
-  receipt += thinLine;
-  receipt += padRight('Bayar (' + (data.paymentMethod || 'Cash') + ')', 22) + padLeft(formatNumber(data.paid), 10) + '\n';
-  receipt += padRight('Kembalian', 22) + padLeft(formatNumber(data.change), 10) + '\n';
-  receipt += line;
-
-  // Footer
-  receipt += '\n';
-  receipt += centerText('Terima Kasih!', 32) + '\n';
-  receipt += centerText('Barang yang sudah dibeli', 32) + '\n';
-  receipt += centerText('tidak dapat ditukar/dikembalikan', 32) + '\n';
-  receipt += '\n\n\n';
-
-  return receipt;
-}
-
-// Helper functions
-function centerText(text: string, width: number): string {
-  const padding = Math.max(0, Math.floor((width - text.length) / 2));
-  return ' '.repeat(padding) + text;
-}
-
-function padRight(text: string, length: number): string {
-  return text.substring(0, length).padEnd(length);
-}
-
-function padLeft(text: string, length: number): string {
-  return text.substring(0, length).padStart(length);
-}
-
-function formatNumber(num: number): string {
-  return num.toLocaleString('id-ID');
-}
-
-// Export fungsi standalone untuk kompatibilitas
 export async function connectBluetoothPrinter(): Promise<{ device: any; characteristic: any }> {
-  if (typeof window === 'undefined') {
-    throw new Error('Bluetooth API is only available in the browser');
+  if (typeof window === "undefined") {
+    throw new Error("Bluetooth API is only available in the browser");
   }
-
   if (!(window as any).navigator.bluetooth) {
-    throw new Error('Web Bluetooth API not supported. Please use Chrome or Edge.');
+    throw new Error("Web Bluetooth API not supported. Please use Chrome or Edge.");
   }
-
   try {
     const device = await (window as any).navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb'],
+      optionalServices: ["000018f0-0000-1000-8000-00805f9b34fb"],
     });
-
     const server = await device.gatt?.connect();
-    if (!server) throw new Error('Failed to connect to GATT server');
-
-    const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-    const characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-
+    if (!server) throw new Error("Failed to connect to GATT server");
+    const service = await server.getPrimaryService("000018f0-0000-1000-8000-00805f9b34fb");
+    const characteristic = await service.getCharacteristic("00002af1-0000-1000-8000-00805f9b34fb");
     bluetoothDevice = device;
     bluetoothCharacteristic = characteristic;
-
     return { device, characteristic };
   } catch (error) {
-    console.error('Bluetooth connection failed:', error);
+    console.error("Bluetooth connection failed:", error);
     throw error;
   }
 }
 
 export async function printReceipt(receiptData: ReceiptData): Promise<void> {
-  if (!bluetoothCharacteristic) {
-    throw new Error('Printer not connected. Please connect to a Bluetooth printer first.');
+  const printer = new ThermalPrinter();
+  if (bluetoothCharacteristic) {
+    (printer as any).characteristic = bluetoothCharacteristic;
+    (printer as any).device = bluetoothDevice;
+    await printer.printReceipt(receiptData);
+  } else {
+    throw new Error("Printer not connected. Please connect to a Bluetooth printer first.");
   }
-
-  const text = formatReceipt(receiptData);
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(text);
-  await bluetoothCharacteristic.writeValueWithoutResponse(bytes);
 }
 
 export async function printText(text: string): Promise<void> {
   if (!bluetoothCharacteristic) {
-    throw new Error('Printer not connected');
+    throw new Error("Printer not connected");
   }
   const encoder = new TextEncoder();
-  const bytes = encoder.encode(text + '\n\n\n');
+  const bytes = encoder.encode(text + "\n\n\n");
   await bluetoothCharacteristic.writeValueWithoutResponse(bytes);
 }
