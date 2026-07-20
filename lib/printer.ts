@@ -82,12 +82,12 @@ export class ThermalPrinter {
 }
 
 export async function connectBluetoothPrinter() {
-  if (!navigator.bluetooth) {
+  if (!(navigator as any).bluetooth) {
     throw new Error('Web Bluetooth API not supported. Use Chrome/Edge.');
   }
 
   try {
-    const device = await navigator.bluetooth.requestDevice({
+    const device = await (navigator as any).bluetooth.requestDevice({
       filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }] // Generic ESC/POS Service UUID
     });
     
