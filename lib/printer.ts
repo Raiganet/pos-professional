@@ -1,5 +1,4 @@
 // lib/printer.ts - Bluetooth Thermal Printer with Fluent API
-
 let bluetoothDevice: any = null;
 let bluetoothCharacteristic: any = null;
 
@@ -33,7 +32,7 @@ export class ThermalPrinter {
       bluetoothDevice = device;
       bluetoothCharacteristic = characteristic;
     } catch (error) {
-      console.error("Bluetooth connection failed:", error);
+      console.error("Bluetooth connection failed: ", error);
       throw error;
     }
   }
@@ -78,7 +77,7 @@ export class ThermalPrinter {
     for (const byte of bytes) {
       this.buffer.push(byte);
     }
-    this.buffer.push(0x0A);
+    this.buffer.push(0x0A); // Newline
     return this;
   }
 
@@ -97,6 +96,14 @@ export class ThermalPrinter {
 
   doubleLine(): this {
     return this.text("=".repeat(32));
+  }
+
+  // ✨ METHOD BARU: Untuk mencetak 2 kolom (kiri & kanan)
+  row(leftText: string, rightText: string, maxWidth: number = 32): this {
+    const totalLength = leftText.length + rightText.length;
+    const spaceCount = maxWidth - totalLength;
+    const padding = " ".repeat(spaceCount > 0 ? spaceCount : 1);
+    return this.text(`${leftText}${padding}${rightText}`);
   }
 
   space(lines: number = 1): this {
@@ -120,7 +127,7 @@ export class ThermalPrinter {
     for (let i = 0; i < data.length; i += chunkSize) {
       const chunk = data.slice(i, i + chunkSize);
       await this.characteristic.writeValueWithoutResponse(chunk);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
     this.buffer = [];
   }
@@ -136,44 +143,64 @@ export class ThermalPrinter {
 
   async printReceipt(receiptData: ReceiptData): Promise<void> {
     this.init()
-      .align("center").bold(true).size(2, 2).text(receiptData.storeName)
-      .bold(false).size(1, 1);
+      .align("center")
+      .bold(true)
+      .size(2, 2)
+      .text(receiptData.storeName)
+      .bold(false)
+      .size(1, 1);
+
     if (receiptData.address) this.text(receiptData.address);
     if (receiptData.phone) this.text(receiptData.phone);
+
     this.doubleLine().align("left")
       .text("No: " + receiptData.transactionNo)
       .text("Tgl: " + receiptData.date);
+
     if (receiptData.cashier) this.text("Kasir: " + receiptData.cashier);
     if (receiptData.customerName) this.text("Pelanggan: " + receiptData.customerName);
+
     this.line();
+
     receiptData.items.forEach((item) => {
       this.textRaw(
         item.name.substring(0, 16).padEnd(16) +
-        String(item.qty).padStart(4) +
-        item.price.toLocaleString("id-ID").padStart(8) +
-        item.subtotal.toLocaleString("id-ID").padStart(8) + "\n"
+          String(item.qty).padStart(4) +
+          item.price.toLocaleString("id-ID").padStart(8) +
+          item.subtotal.toLocaleString("id-ID").padStart(8) +
+          "\n"
       );
     });
+
     this.line()
       .textRaw("Subtotal".padEnd(22) + receiptData.subtotal.toLocaleString("id-ID").padStart(10) + "\n");
+
     if (receiptData.discount && receiptData.discount > 0) {
       this.textRaw("Diskon".padEnd(22) + ("-" + receiptData.discount.toLocaleString("id-ID")).padStart(10) + "\n");
     }
+
     if (receiptData.tax && receiptData.tax > 0) {
       this.textRaw("Pajak".padEnd(22) + receiptData.tax.toLocaleString("id-ID").padStart(10) + "\n");
     }
-    this.doubleLine().bold(true).size(1, 2)
+
+    this.doubleLine()
+      .bold(true)
+      .size(1, 2)
       .textRaw("TOTAL".padEnd(22) + receiptData.total.toLocaleString("id-ID").padStart(10) + "\n")
-      .bold(false).size(1, 1)
+      .bold(false)
+      .size(1, 1)
       .line()
       .textRaw(("Bayar (" + (receiptData.paymentMethod || "Cash") + ")").padEnd(22) + receiptData.paid.toLocaleString("id-ID").padStart(10) + "\n")
       .textRaw("Kembalian".padEnd(22) + receiptData.change.toLocaleString("id-ID").padStart(10) + "\n")
-      .doubleLine().space()
+      .doubleLine()
+      .space()
       .align("center")
       .text("Terima Kasih!")
       .text("Barang yang sudah dibeli")
       .text("tidak dapat ditukar/dikembalikan")
-      .space(3).cut();
+      .space(3)
+      .cut();
+
     await this.send();
   }
 }
@@ -185,7 +212,7 @@ export interface ReceiptData {
   transactionNo: string;
   date: string;
   cashier?: string;
-  items: Array<{ name: string; qty: number; price: number; subtotal: number; }>;
+  items: Array<{ name: string; qty: number; price: number; subtotal: number }>;
   subtotal: number;
   discount?: number;
   tax?: number;
@@ -216,7 +243,7 @@ export async function connectBluetoothPrinter(): Promise<{ device: any; characte
     bluetoothCharacteristic = characteristic;
     return { device, characteristic };
   } catch (error) {
-    console.error("Bluetooth connection failed:", error);
+    console.error("Bluetooth connection failed: ", error);
     throw error;
   }
 }
