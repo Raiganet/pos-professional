@@ -81,7 +81,10 @@ export class ThermalPrinter {
   }
 }
 
-export async function connectBluetoothPrinter() {
+export async function connectBluetoothPrinter()
+  if (typeof window === 'undefined') {
+    throw new Error('Bluetooth API only available in browser');
+  } {
   if (!(navigator as any).bluetooth) {
     throw new Error('Web Bluetooth API not supported. Use Chrome/Edge.');
   }
