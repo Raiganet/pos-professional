@@ -49,7 +49,7 @@ export class ThermalPrinter {
 
   init(): this {
     this.buffer = [];
-    this.buffer.push(0x1B, 0x40);
+    this.buffer.push(0x1B, 0x40); // Initialize printer
     return this;
   }
 
@@ -98,7 +98,7 @@ export class ThermalPrinter {
     return this.text("=".repeat(32));
   }
 
-  // ✨ METHOD BARU: Untuk mencetak 2 kolom (kiri & kanan)
+  // ✨ METHOD BARU 1: Untuk mencetak 2 kolom (kiri & kanan)
   row(leftText: string, rightText: string, maxWidth: number = 32): this {
     const totalLength = leftText.length + rightText.length;
     const spaceCount = maxWidth - totalLength;
@@ -106,11 +106,21 @@ export class ThermalPrinter {
     return this.text(`${leftText}${padding}${rightText}`);
   }
 
-  space(lines: number = 1): this {
+  // ✨ METHOD BARU 2: Alias untuk space(), agar sesuai dengan panggilan .feed(3) di page.tsx
+  feed(lines: number = 1): this {
     for (let i = 0; i < lines; i++) {
       this.buffer.push(0x0A);
     }
     return this;
+  }
+
+  space(lines: number = 1): this {
+    return this.feed(lines);
+  }
+
+  // ✨ METHOD BARU 3: Mengembalikan buffer untuk kebutuhan custom print
+  getBuffer(): number[] {
+    return this.buffer;
   }
 
   cut(): this {
@@ -193,7 +203,7 @@ export class ThermalPrinter {
       .textRaw(("Bayar (" + (receiptData.paymentMethod || "Cash") + ")").padEnd(22) + receiptData.paid.toLocaleString("id-ID").padStart(10) + "\n")
       .textRaw("Kembalian".padEnd(22) + receiptData.change.toLocaleString("id-ID").padStart(10) + "\n")
       .doubleLine()
-      .space()
+      .space(3)
       .align("center")
       .text("Terima Kasih!")
       .text("Barang yang sudah dibeli")
