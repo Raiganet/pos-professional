@@ -1,11 +1,4 @@
-export interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  trend?: number;
-  color: 'purple' | 'indigo' | 'cyan' | 'emerald' | 'rose';
-}
-
+// types/index.ts
 export interface CartItem {
   id: string;
   barcode: string;
@@ -13,15 +6,43 @@ export interface CartItem {
   harga: number;
   qty: number;
   diskon: number;
-  catatan?: string;
+  gambar?: string;
 }
 
-export interface DashboardStats {
-  totalPenjualanHariIni: number;
-  totalPenjualanBulanIni: number;
-  omzet: number;
-  profit: number;
-  jumlahProduk: number;
-  jumlahMember: number;
-  jumlahTransaksi: number;
+export interface Product {
+  id: string;
+  barcode: string;
+  nama: string;
+  harga: number;
+  stok: number;
+  gambar?: string | null;
+  kategori?: string | null;
+  deskripsi?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Transaction {
+  id: string;
+  nomor: string;
+  subtotal: number;
+  diskon: number;
+  pajak: number;
+  grandTotal: number;
+  bayar: number;
+  kembalian: number;
+  metodeBayar: string;
+  userId: string;
+  createdAt: string;
+  details: TransactionDetail[];
+}
+
+export interface TransactionDetail {
+  id: string;
+  transaksiId: string;
+  produkId: string;
+  qty: number;
+  harga: number;
+  subtotal: number;
+  produk?: Product;
 }
