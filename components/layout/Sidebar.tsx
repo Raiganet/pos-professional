@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion } from 'framer-motion'; 
 import {
   LayoutDashboard, ShoppingCart, Package, Users, BarChart3,
   Settings, LogOut, Warehouse, ChevronLeft, Clock
