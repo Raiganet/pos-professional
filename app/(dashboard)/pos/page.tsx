@@ -49,23 +49,28 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Keyboard shortcut: Focus search dengan F2
+  // ✅ DIPINDAH KE ATAS: semua useState harus berkumpul di puncak komponen
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  // ✅ useEffect DITUTUP RAPI (ada return cleanup + }, []); sebelum kode lain)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); }
     };
     window.addEventListener('keydown', handleKeyDown);
-    
-  const [lastTransaction, setLastTransaction] = useState<any>(null);
-  const [printModalOpen, setPrintModalOpen] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
+  // ✅ handlePrint DIPINDAH KELUAR useEffect, jadi fungsi biasa
   const handlePrint = async () => {
     if (!lastTransaction) return;
     setIsPrinting(true);
     try {
-      const characteristic = await connectBluetoothPrinter();
-      
+      // ✅ DI-DESTRUCTURE: connectBluetoothPrinter() mengembalikan { device, characteristic }
+      const { characteristic } = await connectBluetoothPrinter();
+
       const printer = new ThermalPrinter();
       printer.init()
         .align('center').bold(true).size(2, 2).text('TOKO MAJU JAYA')
@@ -99,9 +104,6 @@ export default function POSPage() {
       setIsPrinting(false);
     }
   };
-  
-  return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Filter produk berdasarkan search/barcode
   const filteredProducts = useMemo(() => {
@@ -164,6 +166,9 @@ export default function POSPage() {
       const data = await res.json();
       if (data.success) {
         toast.success(`Transaksi ${data.transaction.nomor} berhasil!`, { duration: 5000 });
+        // 💡 (Opsional untuk nanti) simpan transaksi terakhir agar bisa di-print:
+        // setLastTransaction(data.transaction);
+        // setPrintModalOpen(true);
         clearCart();
         setCheckoutOpen(false);
         setBayarAmount('');
