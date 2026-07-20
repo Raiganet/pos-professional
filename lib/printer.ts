@@ -32,7 +32,7 @@ export class ThermalPrinter {
       bluetoothDevice = device;
       bluetoothCharacteristic = characteristic;
     } catch (error) {
-      console.error("Bluetooth connection failed: ", error);
+      console.error("Bluetooth connection failed:", error);
       throw error;
     }
   }
@@ -49,7 +49,7 @@ export class ThermalPrinter {
 
   init(): this {
     this.buffer = [];
-    this.buffer.push(0x1B, 0x40); // Initialize printer
+    this.buffer.push(0x1B, 0x40);
     return this;
   }
 
@@ -77,7 +77,7 @@ export class ThermalPrinter {
     for (const byte of bytes) {
       this.buffer.push(byte);
     }
-    this.buffer.push(0x0A); // Newline
+    this.buffer.push(0x0A);
     return this;
   }
 
@@ -98,7 +98,6 @@ export class ThermalPrinter {
     return this.text("=".repeat(32));
   }
 
-  // ✨ METHOD BARU 1: Untuk mencetak 2 kolom (kiri & kanan)
   row(leftText: string, rightText: string, maxWidth: number = 32): this {
     const totalLength = leftText.length + rightText.length;
     const spaceCount = maxWidth - totalLength;
@@ -106,7 +105,6 @@ export class ThermalPrinter {
     return this.text(`${leftText}${padding}${rightText}`);
   }
 
-  // ✨ METHOD BARU 2: Alias untuk space(), agar sesuai dengan panggilan .feed(3) di page.tsx
   feed(lines: number = 1): this {
     for (let i = 0; i < lines; i++) {
       this.buffer.push(0x0A);
@@ -118,7 +116,6 @@ export class ThermalPrinter {
     return this.feed(lines);
   }
 
-  // ✨ METHOD BARU 3: Mengembalikan buffer untuk kebutuhan custom print
   getBuffer(): number[] {
     return this.buffer;
   }
@@ -150,87 +147,21 @@ export class ThermalPrinter {
     const bytes = encoder.encode(data);
     await this.characteristic.writeValueWithoutResponse(bytes);
   }
-
-  async printReceipt(receiptData: ReceiptData): Promise<void> {
-    this.init()
-      .align("center")
-      .bold(true)
-      .size(2, 2)
-      .text(receiptData.storeName)
-      .bold(false)
-      .size(1, 1);
-
-    if (receiptData.address) this.text(receiptData.address);
-    if (receiptData.phone) this.text(receiptData.phone);
-
-    this.doubleLine().align("left")
-      .text("No: " + receiptData.transactionNo)
-      .text("Tgl: " + receiptData.date);
-
-    if (receiptData.cashier) this.text("Kasir: " + receiptData.cashier);
-    if (receiptData.customerName) this.text("Pelanggan: " + receiptData.customerName);
-
-    this.line();
-
-    receiptData.items.forEach((item) => {
-      this.textRaw(
-        item.name.substring(0, 16).padEnd(16) +
-          String(item.qty).padStart(4) +
-          item.price.toLocaleString("id-ID").padStart(8) +
-          item.subtotal.toLocaleString("id-ID").padStart(8) +
-          "\n"
-      );
-    });
-
-    this.line()
-      .textRaw("Subtotal".padEnd(22) + receiptData.subtotal.toLocaleString("id-ID").padStart(10) + "\n");
-
-    if (receiptData.discount && receiptData.discount > 0) {
-      this.textRaw("Diskon".padEnd(22) + ("-" + receiptData.discount.toLocaleString("id-ID")).padStart(10) + "\n");
-    }
-
-    if (receiptData.tax && receiptData.tax > 0) {
-      this.textRaw("Pajak".padEnd(22) + receiptData.tax.toLocaleString("id-ID").padStart(10) + "\n");
-    }
-
-    this.doubleLine()
-      .bold(true)
-      .size(1, 2)
-      .textRaw("TOTAL".padEnd(22) + receiptData.total.toLocaleString("id-ID").padStart(10) + "\n")
-      .bold(false)
-      .size(1, 1)
-      .line()
-      .textRaw(("Bayar (" + (receiptData.paymentMethod || "Cash") + ")").padEnd(22) + receiptData.paid.toLocaleString("id-ID").padStart(10) + "\n")
-      .textRaw("Kembalian".padEnd(22) + receiptData.change.toLocaleString("id-ID").padStart(10) + "\n")
-      .doubleLine()
-      .space(3)
-      .align("center")
-      .text("Terima Kasih!")
-      .text("Barang yang sudah dibeli")
-      .text("tidak dapat ditukar/dikembalikan")
-      .space(3)
-      .cut();
-
-    await this.send();
-  }
 }
 
-export interface ReceiptData {
-  storeName: string;
-  address?: string;
-  phone?: string;
-  transactionNo: string;
-  date: string;
-  cashier?: string;
-  items: Array<{ name: string; qty: number; price: number; subtotal: number }>;
-  subtotal: number;
-  discount?: number;
-  tax?: number;
-  total: number;
-  paid: number;
-  change: number;
-  paymentMethod?: string;
-  customerName?: string;
+// ✅ FUNGSI INI YANG DIPANGGIL DI page.tsx BARIS 93
+// printReceipt(characteristic, printer.getBuffer())
+export async function printReceipt(characteristic: any, buffer: number[]): Promise<void> {
+  if (!characteristic) {
+    throw new Error("Printer not connected. Please connect to a Bluetooth printer first.");
+  }
+  const data = new Uint8Array(buffer);
+  const chunkSize = 512;
+  for (let i = 0; i < data.length; i += chunkSize) {
+    const chunk = data.slice(i, i + chunkSize);
+    await characteristic.writeValueWithoutResponse(chunk);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }
 
 export async function connectBluetoothPrinter(): Promise<{ device: any; characteristic: any }> {
@@ -253,19 +184,8 @@ export async function connectBluetoothPrinter(): Promise<{ device: any; characte
     bluetoothCharacteristic = characteristic;
     return { device, characteristic };
   } catch (error) {
-    console.error("Bluetooth connection failed: ", error);
+    console.error("Bluetooth connection failed:", error);
     throw error;
-  }
-}
-
-export async function printReceipt(receiptData: ReceiptData): Promise<void> {
-  const printer = new ThermalPrinter();
-  if (bluetoothCharacteristic) {
-    (printer as any).characteristic = bluetoothCharacteristic;
-    (printer as any).device = bluetoothDevice;
-    await printer.printReceipt(receiptData);
-  } else {
-    throw new Error("Printer not connected. Please connect to a Bluetooth printer first.");
   }
 }
 
