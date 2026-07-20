@@ -74,8 +74,8 @@ export class ThermalPrinter {
   text(content: string): this {
     const encoder = new TextEncoder();
     const bytes = encoder.encode(content);
-    for (const byte of bytes) {
-      this.buffer.push(byte);
+    for (let i = 0; i < bytes.length; i++) {
+      this.buffer.push(bytes[i]);
     }
     this.buffer.push(0x0A);
     return this;
@@ -84,8 +84,8 @@ export class ThermalPrinter {
   textRaw(content: string): this {
     const encoder = new TextEncoder();
     const bytes = encoder.encode(content);
-    for (const byte of bytes) {
-      this.buffer.push(byte);
+    for (let i = 0; i < bytes.length; i++) {
+      this.buffer.push(bytes[i]);
     }
     return this;
   }
@@ -149,8 +149,7 @@ export class ThermalPrinter {
   }
 }
 
-// ✅ FUNGSI INI YANG DIPANGGIL DI page.tsx BARIS 93
-// printReceipt(characteristic, printer.getBuffer())
+// Fungsi yang dipanggil di page.tsx: printReceipt(characteristic, printer.getBuffer())
 export async function printReceipt(characteristic: any, buffer: number[]): Promise<void> {
   if (!characteristic) {
     throw new Error("Printer not connected. Please connect to a Bluetooth printer first.");
