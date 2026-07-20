@@ -15,7 +15,6 @@ const menuItems = [
   { label: 'Produk', icon: Package, href: '/master/produk' },
   { label: 'Kategori', icon: Package, href: '/master/kategori' },
   { label: 'Pelanggan', icon: Users, href: '/master/pelanggan' },
-  { label: 'Pelanggan', icon: Users, href: '/master/pelanggan' },
   { label: 'Stok', icon: Warehouse, href: '/stok' },
   { label: 'Riwayat', icon: Clock, href: '/history' },
   { label: 'Laporan', icon: BarChart3, href: '/laporan' },
