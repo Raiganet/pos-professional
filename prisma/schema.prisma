@@ -52,6 +52,26 @@ model Product {
   details     TransactionDetail[]
 }
 
+model Pelanggan {
+  id        String   @id @default(cuid())
+  nama      String
+  telepon   String?
+  email     String?
+  alamat    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  nama      String
+  telepon   String?
+  email     String?
+  alamat    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Transaction {
   id           String              @id @default(cuid())
   nomor        String              @unique
