@@ -18,24 +18,24 @@ model User {
 }
 
 model Brand {
-  id        String    @id @default(cuid())
-  nama      String    @unique
+  id        String   @id @default(cuid())
+  nama      String   @unique
   deskripsi String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  produks   Produk[]
 }
 
-model Category {
-  id        String    @id @default(cuid())
-  nama      String    @unique
+model Kategori {
+  id        String   @id @default(cuid())
+  nama      String   @unique
   deskripsi String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  produks   Produk[]
 }
 
-model Product {
+model Produk {
   id          String              @id @default(cuid())
   barcode     String              @unique
   nama        String
@@ -44,9 +44,9 @@ model Product {
   gambar      String?
   deskripsi   String?
   brandId     String?
-  categoryId  String?
+  kategoriId  String?
   brand       Brand?              @relation(fields: [brandId], references: [id])
-  category    Category?           @relation(fields: [categoryId], references: [id])
+  kategori    Kategori?           @relation(fields: [kategoriId], references: [id])
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   details     TransactionDetail[]
@@ -92,7 +92,7 @@ model TransactionDetail {
   transaksiId   String
   transaksi     Transaction @relation(fields: [transaksiId], references: [id])
   produkId      String
-  produk        Product     @relation(fields: [produkId], references: [id])
+  produk        Produk      @relation(fields: [produkId], references: [id])
   qty           Int
   harga         Int
   subtotal      Int

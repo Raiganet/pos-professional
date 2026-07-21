@@ -9,14 +9,14 @@ export interface CartItem {
   gambar?: string;
 }
 
-export interface Product {
+export interface Produk {
   id: string;
   barcode: string;
   nama: string;
   harga: number;
   stok: number;
   gambar?: string | null;
-  kategori?: string | null;
+  kategoriId?: string | null;
   deskripsi?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -44,5 +44,5 @@ export interface TransactionDetail {
   qty: number;
   harga: number;
   subtotal: number;
-  produk?: Product;
+  produk?: Produk;
 }

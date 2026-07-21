@@ -7,14 +7,14 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { toast } from 'sonner';
 import { formatRupiah } from '@/lib/utils';
-import type { Product } from '@/types';
+import type { Produk } from '@/types';
 
 export default function ProdukPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Produk[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Produk | null>(null);
   const [formData, setFormData] = useState({
     barcode: '',
     nama: '',

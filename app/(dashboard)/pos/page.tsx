@@ -3,35 +3,17 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Minus, Trash2, ShoppingCart, CreditCard,
-  Banknote, QrCode, Smartphone, Check, Loader2, Barcode
+  Banknote, QrCode, Smartphone, Check, Loader2, Barcode,
+  Printer, Bluetooth
 } from 'lucide-react';
 import { useCartStore } from '@/store/cart-store';
 import { formatRupiah } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { toast } from 'sonner';
 import { ThermalPrinter, connectBluetoothPrinter, printReceipt } from '@/lib/printer';
-import { ReceiptPreview } from '@/components/ui/ReceiptPreview';
-import { Printer, Bluetooth } from 'lucide-react';
-import type { CartItem } from '@/types';
-
-// Mock data produk - ganti dengan fetch dari API/Supabase di production
-const MOCK_PRODUCTS: CartItem[] = [
-  { id: '1', barcode: '8996001600016', nama: 'Indomie Goreng', harga: 3500, qty: 1, diskon: 0 },
-  { id: '2', barcode: '8996001600023', nama: 'Aqua 600ml', harga: 3000, qty: 1, diskon: 0 },
-  { id: '3', barcode: '8996001600030', nama: 'Kopi Kapal Api Special', harga: 1500, qty: 1, diskon: 0 },
-  { id: '4', barcode: '8996001600047', nama: 'Telur Ayam 1kg', harga: 30000, qty: 1, diskon: 0 },
-  { id: '5', barcode: '8996001600054', nama: 'Minyak Goreng Bimoli 1L', harga: 22000, qty: 1, diskon: 0 },
-  { id: '6', barcode: '8996001600061', nama: 'Gula Pasir Gulaku 1kg', harga: 16000, qty: 1, diskon: 0 },
-  { id: '7', barcode: '8996001600078', nama: 'Sabun Lifebuoy', harga: 4500, qty: 1, diskon: 0 },
-  { id: '8', barcode: '8996001600085', nama: 'Shampoo Sunsilk 180ml', harga: 28000, qty: 1, diskon: 0 },
-  { id: '9', barcode: '8996001600092', nama: 'Pasta Gigi Pepsodent 120g', harga: 9500, qty: 1, diskon: 0 },
-  { id: '10', barcode: '8996001600108', nama: 'Teh Botol Sosro 350ml', harga: 4000, qty: 1, diskon: 0 },
-  { id: '11', barcode: '8996001600115', nama: 'Roti Sari Roti Tawar', harga: 15000, qty: 1, diskon: 0 },
-  { id: '12', barcode: '8996001600122', nama: 'Susu Ultra Milk 250ml', harga: 7500, qty: 1, diskon: 0 },
-];
+import type { CartItem, Produk } from '@/types';
 
 const PAYMENT_METHODS = [
   { id: 'Cash', label: 'Tunai', icon: Banknote, color: 'emerald' },
@@ -41,6 +23,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function POSPage() {
+  // ===== SEMUA STATE DI PUNCAK KOMPONEN =====
   const { items, addItem, removeItem, updateQty, clearCart } = useCartStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -49,26 +32,48 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // ✅ DIPINDAH KE ATAS: semua useState harus berkumpul di puncak komponen
+  // State produk dari database
+  const [products, setProducts] = useState<Produk[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // State transaksi terakhir & cetak struk
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // ✅ useEffect DITUTUP RAPI (ada return cleanup + }, []); sebelum kode lain)
+  // ===== FETCH PRODUK DARI DATABASE =====
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        setProducts(data);
+      } catch (error) {
+        toast.error('Gagal mengambil data produk');
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  // ===== KEYBOARD SHORTCUT (F2 = focus search) =====
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ✅ handlePrint DIPINDAH KELUAR useEffect, jadi fungsi biasa
+  // ===== FUNGSI CETAK STRUK =====
   const handlePrint = async () => {
     if (!lastTransaction) return;
     setIsPrinting(true);
     try {
-      // ✅ DI-DESTRUCTURE: connectBluetoothPrinter() mengembalikan { device, characteristic }
       const { characteristic } = await connectBluetoothPrinter();
 
       const printer = new ThermalPrinter();
@@ -77,16 +82,17 @@ export default function POSPage() {
         .bold(false).size(1, 1).text('Jl. Sudirman No. 10')
         .align('left').line()
         .row('No Trans', lastTransaction.nomor)
-        .row('Tanggal', new Date(lastTransaction.createdAt).toLocaleString())
+        .row('Tanggal', new Date(lastTransaction.createdAt).toLocaleString('id-ID'))
         .line();
 
       lastTransaction.details.forEach((item: any) => {
-        printer.text(item.produk?.nama);
-        printer.row(`${item.qty} x ${item.harga}`, formatRupiah(item.subtotal));
+        printer.text(item.produk?.nama || 'Produk');
+        printer.row(`${item.qty} x ${formatRupiah(item.harga)}`, formatRupiah(item.subtotal));
       });
 
       printer.line()
         .row('Subtotal', formatRupiah(lastTransaction.subtotal))
+        .row('Diskon', formatRupiah(lastTransaction.diskon || 0))
         .row('Pajak', formatRupiah(lastTransaction.pajak))
         .row('TOTAL', formatRupiah(lastTransaction.grandTotal))
         .line()
@@ -99,22 +105,22 @@ export default function POSPage() {
       toast.success('Struk berhasil dicetak!');
       setPrintModalOpen(false);
     } catch (e) {
-      toast.error('Gagal mencetak. Pastikan printer terhubung.');
+      toast.error('Gagal mencetak. Pastikan printer Bluetooth terhubung.');
     } finally {
       setIsPrinting(false);
     }
   };
 
-  // Filter produk berdasarkan search/barcode
+  // ===== FILTER PRODUK (search / barcode) =====
   const filteredProducts = useMemo(() => {
-    if (!searchQuery) return MOCK_PRODUCTS;
+    if (!searchQuery) return products;
     const q = searchQuery.toLowerCase();
-    return MOCK_PRODUCTS.filter(
+    return products.filter(
       (p) => p.nama.toLowerCase().includes(q) || p.barcode.includes(q)
     );
-  }, [searchQuery]);
+  }, [searchQuery, products]);
 
-  // Kalkulasi cart
+  // ===== KALKULASI CART =====
   const subtotal = items.reduce((sum, i) => sum + i.harga * i.qty, 0);
   const totalDiskon = items.reduce((sum, i) => sum + i.diskon, 0);
   const pajak = Math.round((subtotal - totalDiskon) * 0.11); // PPN 11%
@@ -122,14 +128,26 @@ export default function POSPage() {
   const bayarNum = parseFloat(bayarAmount) || 0;
   const kembalian = bayarNum - grandTotal;
 
-  // Handle barcode scan (enter di search box)
+  // ===== HANDLE BARCODE SCAN (Enter di search) =====
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchQuery) {
-      const product = MOCK_PRODUCTS.find(
+      const product = products.find(
         (p) => p.barcode === searchQuery || p.nama.toLowerCase() === searchQuery.toLowerCase()
       );
       if (product) {
-        addItem({ ...product, qty: 1 });
+        if (product.stok <= 0) {
+          toast.error(`${product.nama} stok habis!`);
+          return;
+        }
+        addItem({
+          id: product.id,
+          barcode: product.barcode,
+          nama: product.nama,
+          harga: product.harga,
+          qty: 1,
+          diskon: 0,
+          gambar: product.gambar || undefined,
+        });
         toast.success(`${product.nama} ditambahkan`);
         setSearchQuery('');
       } else {
@@ -138,7 +156,25 @@ export default function POSPage() {
     }
   };
 
-  // Checkout handler
+  // ===== HANDLE TAMBAH PRODUK KE CART (klik kartu) =====
+  const handleAddToCart = (product: Produk) => {
+    if (product.stok <= 0) {
+      toast.error(`${product.nama} stok habis!`);
+      return;
+    }
+    addItem({
+      id: product.id,
+      barcode: product.barcode,
+      nama: product.nama,
+      harga: product.harga,
+      qty: 1,
+      diskon: 0,
+      gambar: product.gambar || undefined,
+    });
+    toast.success(`${product.nama} ditambahkan`);
+  };
+
+  // ===== CHECKOUT HANDLER =====
   const handleCheckout = async () => {
     if (bayarNum < grandTotal) {
       toast.error('Jumlah bayar kurang!');
@@ -166,9 +202,8 @@ export default function POSPage() {
       const data = await res.json();
       if (data.success) {
         toast.success(`Transaksi ${data.transaction.nomor} berhasil!`, { duration: 5000 });
-        // 💡 (Opsional untuk nanti) simpan transaksi terakhir agar bisa di-print:
-        // setLastTransaction(data.transaction);
-        // setPrintModalOpen(true);
+        setLastTransaction(data.transaction);
+        setPrintModalOpen(true);
         clearCart();
         setCheckoutOpen(false);
         setBayarAmount('');
@@ -182,9 +217,10 @@ export default function POSPage() {
     }
   };
 
+  // ===== RENDER =====
   return (
     <div className="flex gap-4 h-[calc(100vh-7rem)]">
-      {/* LEFT: Product Catalog */}
+      {/* ========== LEFT: PRODUCT CATALOG ========== */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Search Bar */}
         <div className="glass-card p-3 mb-4 flex gap-3">
@@ -206,44 +242,63 @@ export default function POSPage() {
 
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto pr-1">
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            <AnimatePresence mode="popLayout">
-              {filteredProducts.map((product) => (
-                <motion.div
-                  key={product.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    addItem({ ...product, qty: 1 });
-                    toast.success(`${product.nama} ditambahkan`);
-                  }}
-                  className="glass-card p-4 cursor-pointer group"
-                >
-                  <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3">
-                    <ShoppingCart className="w-8 h-8 text-primary/40 group-hover:text-primary transition-colors" />
-                  </div>
-                  <p className="font-semibold text-sm truncate">{product.nama}</p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">{product.barcode}</p>
-                  <p className="text-primary font-bold mt-2">{formatRupiah(product.harga)}</p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+          {loadingProducts ? (
+            <div className="flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
+              <Loader2 className="w-8 h-8 animate-spin mb-3" />
+              <p>Memuat produk...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+              <AnimatePresence mode="popLayout">
+                {filteredProducts.map((product) => (
+                  <motion.div
+                    key={product.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleAddToCart(product)}
+                    className={`glass-card p-4 cursor-pointer group ${product.stok <= 0 ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    {/* Gambar Produk */}
+                    <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3 overflow-hidden">
+                      {product.gambar ? (
+                        <img
+                          src={product.gambar}
+                          alt={product.nama}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ShoppingCart className="w-8 h-8 text-primary/40 group-hover:text-primary transition-colors" />
+                      )}
+                    </div>
 
-            {filteredProducts.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
-                <Search className="w-12 h-12 mb-3 opacity-30" />
-                <p>Produk tidak ditemukan</p>
-              </div>
-            )}
-          </div>
+                    {/* Info Produk */}
+                    <p className="font-semibold text-sm truncate">{product.nama}</p>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">{product.barcode}</p>
+                    <p className="text-primary font-bold mt-2">{formatRupiah(product.harga)}</p>
+                    <p className={`text-xs mt-1 font-medium ${product.stok > 0 ? 'text-success' : 'text-danger'}`}>
+                      Stok: {product.stok}
+                    </p>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {filteredProducts.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
+                  <Search className="w-12 h-12 mb-3 opacity-30" />
+                  <p>Produk tidak ditemukan</p>
+                  <p className="text-xs mt-1">Tambahkan produk di halaman Manajemen Produk</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* RIGHT: Cart Panel */}
+      {/* ========== RIGHT: CART PANEL ========== */}
       <div className="w-96 flex flex-col glass-card !rounded-2xl overflow-hidden flex-shrink-0">
         {/* Cart Header */}
         <div className="p-4 border-b border-white/10">
@@ -266,7 +321,10 @@ export default function POSPage() {
               >
                 <div className="flex justify-between items-start">
                   <p className="font-medium text-sm flex-1 pr-2">{item.nama}</p>
-                  <button onClick={() => removeItem(item.id)} className="text-danger hover:bg-danger/10 p-1 rounded-lg transition-colors">
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="text-danger hover:bg-danger/10 p-1 rounded-lg transition-colors"
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -325,7 +383,7 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* CHECKOUT MODAL */}
+      {/* ========== CHECKOUT MODAL ========== */}
       <Modal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} title="💳 Pembayaran">
         <div className="space-y-5">
           {/* Payment Methods */}
@@ -405,6 +463,42 @@ export default function POSPage() {
               <><Check className="w-5 h-5" /> Proses Pembayaran</>
             )}
           </Button>
+        </div>
+      </Modal>
+
+      {/* ========== PRINT RECEIPT MODAL ========== */}
+      <Modal open={printModalOpen} onClose={() => setPrintModalOpen(false)} title="🖨️ Cetak Struk">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <Printer className="w-8 h-8 text-primary" />
+          </div>
+          <p className="text-[var(--text-secondary)]">
+            Transaksi berhasil! Apakah Anda ingin mencetak struk?
+          </p>
+          {lastTransaction && (
+            <div className="glass-card !p-3 text-left text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-secondary)]">No. Transaksi</span>
+                <span className="font-medium">{lastTransaction.nomor}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-secondary)]">Total</span>
+                <span className="font-bold text-primary">{formatRupiah(lastTransaction.grandTotal)}</span>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3 justify-center pt-2">
+            <Button variant="outline" onClick={() => setPrintModalOpen(false)}>
+              Lewati
+            </Button>
+            <Button onClick={handlePrint} disabled={isPrinting}>
+              {isPrinting ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Mencetak...</>
+              ) : (
+                <><Bluetooth className="w-4 h-4" /> Cetak Struk</>
+              )}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>
