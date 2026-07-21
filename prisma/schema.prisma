@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("KASIR")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  password     String
+  role         String        @default("KASIR")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
 }
 
 model Brand {
@@ -47,32 +48,34 @@ model Supplier {
 }
 
 model Pelanggan {
-  id        String   @id @default(cuid())
-  nama      String
-  telepon   String?
-  email     String?
-  alamat    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(cuid())
+  nama         String
+  telepon      String?
+  email        String?
+  alamat       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
 }
 
 model Produk {
-  id          String              @id @default(cuid())
-  barcode     String              @unique
-  nama        String
-  harga       Int
-  stok        Int                 @default(0)
-  gambar      String?
-  deskripsi   String?
-  brandId     String?
-  kategoriId  String?
-  supplierId  String?
-  brand       Brand?              @relation(fields: [brandId], references: [id])
-  kategori    Kategori?           @relation(fields: [kategoriId], references: [id])
-  supplier    Supplier?           @relation(fields: [supplierId], references: [id])
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  details     TransactionDetail[]
+  id            String              @id @default(cuid())
+  barcode       String              @unique
+  nama          String
+  harga         Int
+  stok          Int                 @default(0)
+  gambar        String?
+  deskripsi     String?
+  brandId       String?
+  kategoriId    String?
+  supplierId    String?
+  brand         Brand?              @relation(fields: [brandId], references: [id])
+  kategori      Kategori?           @relation(fields: [kategoriId], references: [id])
+  supplier      Supplier?           @relation(fields: [supplierId], references: [id])
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  details       TransactionDetail[]
+  stokMovements StokMovement[]
 }
 
 model Transaction {
@@ -85,18 +88,45 @@ model Transaction {
   bayar        Int
   kembalian    Int
   metodeBayar  String
-  userId       String
+  catatan      String?
+  userId       String?
+  pelangganId  String?
+  user         User?               @relation(fields: [userId], references: [id])
+  pelanggan    Pelanggan?          @relation(fields: [pelangganId], references: [id])
   createdAt    DateTime            @default(now())
   details      TransactionDetail[]
+  payments     Payment[]
 }
 
 model TransactionDetail {
-  id            String      @id @default(cuid())
-  transaksiId   String
-  transaksi     Transaction @relation(fields: [transaksiId], references: [id])
-  produkId      String
-  produk        Produk      @relation(fields: [produkId], references: [id])
-  qty           Int
-  harga         Int
-  subtotal      Int
+  id          String      @id @default(cuid())
+  transaksiId String
+  transaksi   Transaction @relation(fields: [transaksiId], references: [id])
+  produkId    String
+  produk      Produk      @relation(fields: [produkId], references: [id])
+  qty         Int
+  harga       Int
+  diskon      Int         @default(0)
+  subtotal    Int
+  catatan     String?
+}
+
+model Payment {
+  id          String      @id @default(cuid())
+  transaksiId String
+  transaksi   Transaction @relation(fields: [transaksiId], references: [id])
+  metode      String
+  jumlah      Int
+  createdAt   DateTime    @default(now())
+}
+
+model StokMovement {
+  id        String   @id @default(cuid())
+  produkId  String
+  produk    Produk   @relation(fields: [produkId], references: [id])
+  tipe      String
+  jumlah    Int
+  referensi String?
+  catatan   String?
+  createdAt DateTime @default(now())
 }
