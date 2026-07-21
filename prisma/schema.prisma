@@ -59,31 +59,31 @@ model Pelanggan {
 }
 
 model Produk {
-  id            String              @id @default(cuid())
-  barcode       String              @unique
+  id            String            @id @default(cuid())
+  barcode       String            @unique
   nama          String
   harga         Int
-  stok          Int                 @default(0)
+  stok          Int               @default(0)
   gambar        String?
   deskripsi     String?
-  statusAktif   Boolean             @default(true)   // 👈 TAMBAHKAN BARIS INI
+  statusAktif   Boolean           @default(true)
   brandId       String?
   kategoriId    String?
   supplierId    String?
-  brand         Brand?              @relation(fields: [brandId], references: [id])
-  kategori      Kategori?           @relation(fields: [kategoriId], references: [id])
-  supplier      Supplier?           @relation(fields: [supplierId], references: [id])
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  details       TransactionDetail[]
+  brand         Brand?            @relation(fields: [brandId], references: [id])
+  kategori      Kategori?         @relation(fields: [kategoriId], references: [id])
+  supplier      Supplier?         @relation(fields: [supplierId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  details       DetailTransaksi[]
   stokMovements StokMovement[]
 }
 
 model Transaction {
-  id           String              @id @default(cuid())
-  nomor        String              @unique
+  id           String            @id @default(cuid())
+  nomor        String            @unique
   subtotal     Int
-  diskon       Int                 @default(0)
+  diskon       Int               @default(0)
   pajak        Int
   grandTotal   Int
   bayar        Int
@@ -92,14 +92,14 @@ model Transaction {
   catatan      String?
   userId       String?
   pelangganId  String?
-  user         User?               @relation(fields: [userId], references: [id])
-  pelanggan    Pelanggan?          @relation(fields: [pelangganId], references: [id])
-  createdAt    DateTime            @default(now())
-  details      TransactionDetail[]
+  user         User?             @relation(fields: [userId], references: [id])
+  pelanggan    Pelanggan?        @relation(fields: [pelangganId], references: [id])
+  createdAt    DateTime          @default(now())
+  details      DetailTransaksi[]
   payments     Payment[]
 }
 
-model TransactionDetail {
+model DetailTransaksi {
   id          String      @id @default(cuid())
   transaksiId String
   transaksi   Transaction @relation(fields: [transaksiId], references: [id])
@@ -110,6 +110,8 @@ model TransactionDetail {
   diskon      Int         @default(0)
   subtotal    Int
   catatan     String?
+
+  @@map("TransactionDetail")
 }
 
 model Payment {
