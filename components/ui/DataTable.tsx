@@ -40,9 +40,9 @@ export function DataTable<T extends Record<string, any>>({
       searchKeys.some((key) => String(row[key] ?? '').toLowerCase().includes(q))
     );
   }, [data, search, searchKeys]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const safeFiltered = Array.isArray(filtered) ? filtered : [];
+  const totalPages = Math.max(1, Math.ceil(safeFiltered.length / pageSize));
+  const paged = safeFiltered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleExport = () => {
     exportToExcel(filtered as Record<string, any>[], exportFilename);

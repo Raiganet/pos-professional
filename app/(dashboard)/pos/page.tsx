@@ -16,38 +16,32 @@ import { ThermalPrinter, connectBluetoothPrinter, printReceipt } from '@/lib/pri
 import type { CartItem, Produk } from '@/types';
 
 const PAYMENT_METHODS = [
-  { id: 'Cash', label: 'Tunai', icon: Banknote, color: 'emerald' },
-  { id: 'QRIS', label: 'QRIS', icon: QrCode, color: 'primary' },
-  { id: 'Transfer', label: 'Transfer Bank', icon: CreditCard, color: 'indigo' },
-  { id: 'E-Wallet', label: 'E-Wallet', icon: Smartphone, color: 'cyan' },
+  { id: 'Cash', label: 'Tunai', icon: Banknote },
+  { id: 'QRIS', label: 'QRIS', icon: QrCode },
+  { id: 'Transfer', label: 'Transfer Bank', icon: CreditCard },
+  { id: 'E-Wallet', label: 'E-Wallet', icon: Smartphone },
 ];
 
 export default function POSPage() {
-  // ===== SEMUA STATE DI PUNCAK KOMPONEN =====
   const { items, addItem, removeItem, updateQty, clearCart } = useCartStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState('Cash');
   const [bayarAmount, setBayarAmount] = useState('');
   const [processing, setProcessing] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // State produk dari database
   const [products, setProducts] = useState<Produk[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-
-  // State transaksi terakhir & cetak struk
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [printModalOpen, setPrintModalOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  // ===== FETCH PRODUK DARI DATABASE =====
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const res = await fetch('/api/products');
         const data = await res.json();
-        setProducts(data);
+        setProducts(Array.isArray(data) ? data : []);
       } catch (error) {
         toast.error('Gagal mengambil data produk');
       } finally {
@@ -57,7 +51,6 @@ export default function POSPage() {
     fetchProducts();
   }, []);
 
-  // ===== KEYBOARD SHORTCUT (F2 = focus search) =====
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
@@ -69,13 +62,11 @@ export default function POSPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ===== FUNGSI CETAK STRUK =====
   const handlePrint = async () => {
     if (!lastTransaction) return;
     setIsPrinting(true);
     try {
       const { characteristic } = await connectBluetoothPrinter();
-
       const printer = new ThermalPrinter();
       printer.init()
         .align('center').bold(true).size(2, 2).text('TOKO MAJU JAYA')
@@ -84,15 +75,12 @@ export default function POSPage() {
         .row('No Trans', lastTransaction.nomor)
         .row('Tanggal', new Date(lastTransaction.createdAt).toLocaleString('id-ID'))
         .line();
-
       lastTransaction.details.forEach((item: any) => {
         printer.text(item.produk?.nama || 'Produk');
         printer.row(`${item.qty} x ${formatRupiah(item.harga)}`, formatRupiah(item.subtotal));
       });
-
       printer.line()
         .row('Subtotal', formatRupiah(lastTransaction.subtotal))
-        .row('Diskon', formatRupiah(lastTransaction.diskon || 0))
         .row('Pajak', formatRupiah(lastTransaction.pajak))
         .row('TOTAL', formatRupiah(lastTransaction.grandTotal))
         .line()
@@ -100,7 +88,6 @@ export default function POSPage() {
         .row('Kembali', formatRupiah(lastTransaction.kembalian))
         .feed(3)
         .cut();
-
       await printReceipt(characteristic, printer.getBuffer());
       toast.success('Struk berhasil dicetak!');
       setPrintModalOpen(false);
@@ -111,8 +98,8 @@ export default function POSPage() {
     }
   };
 
-  // ===== FILTER PRODUK (search / barcode) =====
   const filteredProducts = useMemo(() => {
+    if (!Array.isArray(products)) return [];
     if (!searchQuery) return products;
     const q = searchQuery.toLowerCase();
     return products.filter(
@@ -120,43 +107,13 @@ export default function POSPage() {
     );
   }, [searchQuery, products]);
 
-  // ===== KALKULASI CART =====
   const subtotal = items.reduce((sum, i) => sum + i.harga * i.qty, 0);
   const totalDiskon = items.reduce((sum, i) => sum + i.diskon, 0);
-  const pajak = Math.round((subtotal - totalDiskon) * 0.11); // PPN 11%
+  const pajak = Math.round((subtotal - totalDiskon) * 0.11);
   const grandTotal = subtotal - totalDiskon + pajak;
   const bayarNum = parseFloat(bayarAmount) || 0;
   const kembalian = bayarNum - grandTotal;
 
-  // ===== HANDLE BARCODE SCAN (Enter di search) =====
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && searchQuery) {
-      const product = products.find(
-        (p) => p.barcode === searchQuery || p.nama.toLowerCase() === searchQuery.toLowerCase()
-      );
-      if (product) {
-        if (product.stok <= 0) {
-          toast.error(`${product.nama} stok habis!`);
-          return;
-        }
-        addItem({
-          id: product.id,
-          barcode: product.barcode,
-          nama: product.nama,
-          harga: product.harga,
-          qty: 1,
-          diskon: 0,
-          gambar: product.gambar || undefined,
-        });
-        toast.success(`${product.nama} ditambahkan`);
-        setSearchQuery('');
-      } else {
-        toast.error('Produk tidak ditemukan');
-      }
-    }
-  };
-
-  // ===== HANDLE TAMBAH PRODUK KE CART (klik kartu) =====
   const handleAddToCart = (product: Produk) => {
     if (product.stok <= 0) {
       toast.error(`${product.nama} stok habis!`);
@@ -174,31 +131,35 @@ export default function POSPage() {
     toast.success(`${product.nama} ditambahkan`);
   };
 
-  // ===== CHECKOUT HANDLER =====
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && searchQuery) {
+      const product = products.find(
+        (p) => p.barcode === searchQuery || p.nama.toLowerCase() === searchQuery.toLowerCase()
+      );
+      if (product) {
+        handleAddToCart(product);
+        setSearchQuery('');
+      } else {
+        toast.error('Produk tidak ditemukan');
+      }
+    }
+  };
+
   const handleCheckout = async () => {
     if (bayarNum < grandTotal) {
       toast.error('Jumlah bayar kurang!');
       return;
     }
-
     setProcessing(true);
     try {
       const res = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items,
-          subtotal,
-          diskon: totalDiskon,
-          pajak,
-          grandTotal,
-          bayar: bayarNum,
-          kembalian,
-          metodeBayar: selectedPayment,
-          userId: 'demo-user-id',
+          items, subtotal, diskon: totalDiskon, pajak, grandTotal,
+          bayar: bayarNum, kembalian, metodeBayar: selectedPayment, userId: 'demo-user-id',
         }),
       });
-
       const data = await res.json();
       if (data.success) {
         toast.success(`Transaksi ${data.transaction.nomor} berhasil!`, { duration: 5000 });
@@ -217,12 +178,9 @@ export default function POSPage() {
     }
   };
 
-  // ===== RENDER =====
   return (
     <div className="flex gap-4 h-[calc(100vh-7rem)]">
-      {/* ========== LEFT: PRODUCT CATALOG ========== */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Search Bar */}
         <div className="glass-card p-3 mb-4 flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-secondary)]" />
@@ -240,7 +198,6 @@ export default function POSPage() {
           </Button>
         </div>
 
-        {/* Product Grid */}
         <div className="flex-1 overflow-y-auto pr-1">
           {loadingProducts ? (
             <div className="flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
@@ -262,20 +219,13 @@ export default function POSPage() {
                     onClick={() => handleAddToCart(product)}
                     className={`glass-card p-4 cursor-pointer group ${product.stok <= 0 ? 'opacity-50 pointer-events-none' : ''}`}
                   >
-                    {/* Gambar Produk */}
                     <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center mb-3 overflow-hidden">
                       {product.gambar ? (
-                        <img
-                          src={product.gambar}
-                          alt={product.nama}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={product.gambar} alt={product.nama} className="w-full h-full object-cover" />
                       ) : (
                         <ShoppingCart className="w-8 h-8 text-primary/40 group-hover:text-primary transition-colors" />
                       )}
                     </div>
-
-                    {/* Info Produk */}
                     <p className="font-semibold text-sm truncate">{product.nama}</p>
                     <p className="text-xs text-[var(--text-secondary)] mt-0.5">{product.barcode}</p>
                     <p className="text-primary font-bold mt-2">{formatRupiah(product.harga)}</p>
@@ -290,7 +240,6 @@ export default function POSPage() {
                 <div className="col-span-full flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
                   <Search className="w-12 h-12 mb-3 opacity-30" />
                   <p>Produk tidak ditemukan</p>
-                  <p className="text-xs mt-1">Tambahkan produk di halaman Manajemen Produk</p>
                 </div>
               )}
             </div>
@@ -298,9 +247,7 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* ========== RIGHT: CART PANEL ========== */}
       <div className="w-96 flex flex-col glass-card !rounded-2xl overflow-hidden flex-shrink-0">
-        {/* Cart Header */}
         <div className="p-4 border-b border-white/10">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-primary" /> Keranjang
@@ -308,7 +255,6 @@ export default function POSPage() {
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">{items.length} item</p>
         </div>
 
-        {/* Cart Items */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           <AnimatePresence>
             {items.map((item) => (
@@ -358,7 +304,6 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* Cart Summary */}
         <div className="p-4 border-t border-white/10 space-y-2 bg-white/5">
           <div className="flex justify-between text-sm">
             <span className="text-[var(--text-secondary)]">Subtotal</span>
@@ -372,7 +317,6 @@ export default function POSPage() {
             <span>Total</span>
             <span className="text-primary">{formatRupiah(grandTotal)}</span>
           </div>
-
           <Button
             className="w-full mt-3 !py-3"
             disabled={items.length === 0}
@@ -383,10 +327,8 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* ========== CHECKOUT MODAL ========== */}
       <Modal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} title="💳 Pembayaran">
         <div className="space-y-5">
-          {/* Payment Methods */}
           <div>
             <label className="block text-sm font-medium mb-2">Metode Pembayaran</label>
             <div className="grid grid-cols-2 gap-2">
@@ -408,13 +350,11 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Amount Display */}
           <div className="glass-card !p-4 text-center">
             <p className="text-sm text-[var(--text-secondary)]">Total Tagihan</p>
             <p className="text-3xl font-bold text-primary mt-1">{formatRupiah(grandTotal)}</p>
           </div>
 
-          {/* Bayar Input */}
           <div>
             <label className="block text-sm font-medium mb-2">Jumlah Bayar</label>
             <Input
@@ -425,7 +365,6 @@ export default function POSPage() {
               className="!text-lg !font-bold text-center"
               autoFocus
             />
-            {/* Quick Amount Buttons */}
             <div className="flex gap-2 mt-2">
               {[grandTotal, Math.ceil(grandTotal / 10000) * 10000, 50000, 100000].map((amt) => (
                 <button
@@ -439,7 +378,6 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Kembalian */}
           {bayarNum >= grandTotal && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -451,22 +389,20 @@ export default function POSPage() {
             </motion.div>
           )}
 
-          {/* Process Button */}
           <Button
             className="w-full !py-3.5 !text-base"
             disabled={processing || bayarNum < grandTotal}
             onClick={handleCheckout}
           >
             {processing ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Memproses...</>
+              <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Memproses...</>
             ) : (
-              <><Check className="w-5 h-5" /> Proses Pembayaran</>
+              <><Check className="w-5 h-5 mr-2" /> Proses Pembayaran</>
             )}
           </Button>
         </div>
       </Modal>
 
-      {/* ========== PRINT RECEIPT MODAL ========== */}
       <Modal open={printModalOpen} onClose={() => setPrintModalOpen(false)} title="🖨️ Cetak Struk">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -493,9 +429,9 @@ export default function POSPage() {
             </Button>
             <Button onClick={handlePrint} disabled={isPrinting}>
               {isPrinting ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Mencetak...</>
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Mencetak...</>
               ) : (
-                <><Bluetooth className="w-4 h-4" /> Cetak Struk</>
+                <><Bluetooth className="w-4 h-4 mr-2" /> Cetak Struk</>
               )}
             </Button>
           </div>
