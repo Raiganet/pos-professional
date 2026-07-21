@@ -63,7 +63,9 @@ model Produk {
   barcode       String            @unique
   nama          String
   harga         Int
+  hargaModal    Int               @default(0)
   stok          Int               @default(0)
+  minimalStok   Int               @default(10)
   gambar        String?
   deskripsi     String?
   statusAktif   Boolean           @default(true)
