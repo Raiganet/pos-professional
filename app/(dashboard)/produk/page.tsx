@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, Search, X, Save, Upload } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Plus, Edit2, Trash2, Search, X, Save } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -25,7 +25,7 @@ export default function ProdukPage() {
     deskripsi: '',
   });
 
-  // Fetch products
+  // Fetch products dari database
   const fetchProducts = async () => {
     try {
       const res = await fetch('/api/products');
@@ -45,14 +45,14 @@ export default function ProdukPage() {
   // Handle submit (create/update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      const url = editingProduct 
+      const url = editingProduct
         ? `/api/products/${editingProduct.id}`
         : '/api/products';
-      
+
       const method = editingProduct ? 'PUT' : 'POST';
-      
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -60,9 +60,9 @@ export default function ProdukPage() {
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.error);
-      
+
       toast.success(editingProduct ? 'Produk berhasil diupdate' : 'Produk berhasil ditambahkan');
       setModalOpen(false);
       resetForm();
@@ -75,7 +75,7 @@ export default function ProdukPage() {
   // Handle delete
   const handleDelete = async (id: string, nama: string) => {
     if (!confirm(`Yakin ingin menghapus produk "${nama}"?`)) return;
-    
+
     try {
       await fetch(`/api/products/${id}`, { method: 'DELETE' });
       toast.success('Produk berhasil dihapus');
@@ -86,7 +86,7 @@ export default function ProdukPage() {
   };
 
   // Handle edit
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: Produk) => {
     setEditingProduct(product);
     setFormData({
       barcode: product.barcode,
@@ -94,7 +94,7 @@ export default function ProdukPage() {
       harga: product.harga.toString(),
       stok: product.stok.toString(),
       gambar: product.gambar || '',
-      kategori: product.kategori || '',
+      kategori: product.kategoriId || '',
       deskripsi: product.deskripsi || '',
     });
     setModalOpen(true);
@@ -132,7 +132,7 @@ export default function ProdukPage() {
           </p>
         </div>
         <Button onClick={() => { resetForm(); setModalOpen(true); }}>
-          <Plus className="w-4 h-4" /> Tambah Produk
+          <Plus className="w-4 h-4 mr-2" /> Tambah Produk
         </Button>
       </div>
 
@@ -173,7 +173,7 @@ export default function ProdukPage() {
               ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-[var(--text-secondary)]">
-                    Tidak ada produk
+                    Tidak ada produk. Klik &quot;Tambah Produk&quot; untuk menambahkan.
                   </td>
                 </tr>
               ) : (
@@ -222,7 +222,7 @@ export default function ProdukPage() {
                         {product.stok}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm">{product.kategori || '-'}</td>
+                    <td className="py-3 px-4 text-sm">{product.kategoriId || '-'}</td>
                     <td className="py-3 px-4">
                       <div className="flex justify-end gap-2">
                         <button
@@ -265,11 +265,11 @@ export default function ProdukPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Kategori</label>
+              <label className="block text-sm font-medium mb-2">Kategori ID</label>
               <Input
                 value={formData.kategori}
                 onChange={(e) => setFormData({ ...formData, kategori: e.target.value })}
-                placeholder="Makanan"
+                placeholder="Opsional"
               />
             </div>
           </div>
@@ -329,14 +329,14 @@ export default function ProdukPage() {
 
           <div className="flex gap-3 pt-4">
             <Button type="submit" className="flex-1">
-              <Save className="w-4 h-4" /> {editingProduct ? 'Update' : 'Simpan'}
+              <Save className="w-4 h-4 mr-2" /> {editingProduct ? 'Update' : 'Simpan'}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => { setModalOpen(false); resetForm(); }}
             >
-              <X className="w-4 h-4" /> Batal
+              <X className="w-4 h-4 mr-2" /> Batal
             </Button>
           </div>
         </form>
