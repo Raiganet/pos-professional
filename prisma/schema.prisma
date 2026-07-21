@@ -66,6 +66,7 @@ model Produk {
   stok          Int                 @default(0)
   gambar        String?
   deskripsi     String?
+  statusAktif   Boolean             @default(true)   // 👈 TAMBAHKAN BARIS INI
   brandId       String?
   kategoriId    String?
   supplierId    String?
